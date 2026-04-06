@@ -51,24 +51,24 @@ const requiredFirebaseEnvKeys = [
 function readRequiredFirebaseEnv(key) {
   const value = import.meta.env[key];
 
-  if (!value) {
-    throw new Error(
-      `[Firebase] Missing ${key}. Copy .env.example to .env and paste your Firebase web app config.`,
-    );
-  }
-
-  return value;
+  return value || null;
 }
 
-requiredFirebaseEnvKeys.forEach(readRequiredFirebaseEnv);
+const missingFirebaseEnvKeys = requiredFirebaseEnvKeys.filter(
+  (key) => !readRequiredFirebaseEnv(key),
+);
+
+const firebaseConfigError = missingFirebaseEnvKeys.length > 0
+  ? `[Firebase] Missing ${missingFirebaseEnvKeys.join(", ")}. Copy .env.example to .env locally and add the same variables in Vercel Project Settings.`
+  : null;
 
 const firebaseConfig = {
-  apiKey: readRequiredFirebaseEnv("VITE_FIREBASE_API_KEY"),
-  authDomain: readRequiredFirebaseEnv("VITE_FIREBASE_AUTH_DOMAIN"),
-  projectId: readRequiredFirebaseEnv("VITE_FIREBASE_PROJECT_ID"),
-  storageBucket: readRequiredFirebaseEnv("VITE_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: readRequiredFirebaseEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
-  appId: readRequiredFirebaseEnv("VITE_FIREBASE_APP_ID"),
+  apiKey: readRequiredFirebaseEnv("VITE_FIREBASE_API_KEY") || "missing-api-key",
+  authDomain: readRequiredFirebaseEnv("VITE_FIREBASE_AUTH_DOMAIN") || "missing-auth-domain",
+  projectId: readRequiredFirebaseEnv("VITE_FIREBASE_PROJECT_ID") || "missing-project-id",
+  storageBucket: readRequiredFirebaseEnv("VITE_FIREBASE_STORAGE_BUCKET") || "missing-storage-bucket",
+  messagingSenderId: readRequiredFirebaseEnv("VITE_FIREBASE_MESSAGING_SENDER_ID") || "missing-sender-id",
+  appId: readRequiredFirebaseEnv("VITE_FIREBASE_APP_ID") || "missing-app-id",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
@@ -101,7 +101,7 @@ try {
 
 // Export everything needed
 export {
-  app, auth, db, messaging,
+  app, auth, db, messaging, firebaseConfigError,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,

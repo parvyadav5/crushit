@@ -12,7 +12,7 @@ import { initAppByParvYadav24BCI0231 } from './lib/ParvYadav_24BCI0231';
 
 // App — CrushIt by Parv Yadav (24BCI0231)
 export default function App_ParvYadav_24BCI0231() {
-  const { currentUser } = useAuth();
+  const { currentUser, authError } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // useEffect: Print Parv Yadav 24BCI0231 identity on app load
@@ -20,6 +20,33 @@ export default function App_ParvYadav_24BCI0231() {
     const parvYadav_24BCI0231 = initAppByParvYadav24BCI0231();
     console.log("[App] Initialized by:", parvYadav_24BCI0231.getWatermarkParvYadav());
   }, []);
+
+  if (authError) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-layout">
+          <div className="auth-card card" style={{ maxWidth: '640px', margin: '0 auto' }}>
+            <div className="auth-card-top">
+              <p className="auth-panel-label">Startup issue</p>
+              <h2 className="auth-panel-title">CrushIt could not connect to Firebase.</h2>
+              <p className="auth-subtitle">
+                The app is running, but Firebase configuration is missing or a startup request failed.
+              </p>
+            </div>
+
+            <div className="auth-error visible" style={{ marginBottom: '16px' }}>
+              {authError}
+            </div>
+
+            <div style={{ color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+              <p>Fix this by adding the Firebase environment variables in Vercel Project Settings and then redeploying.</p>
+              <p>For local setup, copy <code>.env.example</code> to <code>.env</code> and paste your Firebase web app config.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <AuthScreen_ParvYadav_24BCI0231 />;

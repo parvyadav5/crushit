@@ -13,7 +13,8 @@ import {
   setDoc,
   serverTimestamp,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  firebaseConfigError,
 } from '../firebase';
 
 const googleProvider = new GoogleAuthProvider();
@@ -27,6 +28,7 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [authError, setAuthError] = useState(firebaseConfigError);
   const [loading, setLoading] = useState(true);
 
   async function register(email, password, gender = 'male', displayName = '') {
@@ -89,31 +91,45 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Auto-create user profile if it doesn't exist
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        const fallbackName = user.displayName || user.email?.split('@')[0] || 'Operator';
-
-        if (!userSnap.exists()) {
-          const nextProfile = {
-            email: user.email,
-            gender: 'male',
-            displayName: fallbackName,
-            createdAt: serverTimestamp(),
-          };
-
-          await setDoc(userRef, nextProfile);
-          setProfile(nextProfile);
-        } else {
-          setProfile(userSnap.data());
-        }
-      } else {
-        setProfile(null);
-      }
-      setCurrentUser(user);
+    if (firebaseConfigError) {
       setLoading(false);
+      return undefined;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      try {
+        setAuthError(null);
+
+        if (user) {
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
+          const fallbackName = user.displayName || user.email?.split('@')[0] || 'Operator';
+
+          if (!userSnap.exists()) {
+            const nextProfile = {
+              email: user.email,
+              gender: 'male',
+              displayName: fallbackName,
+              createdAt: serverTimestamp(),
+            };
+
+            await setDoc(userRef, nextProfile);
+            setProfile(nextProfile);
+          } else {
+            setProfile(userSnap.data());
+          }
+        } else {
+          setProfile(null);
+        }
+        setCurrentUser(user);
+      } catch (error) {
+        console.error('Auth bootstrap failed:', error);
+        setAuthError(error.message || 'Failed to initialize Firebase authentication.');
+        setCurrentUser(user);
+        setProfile((current) => current || null);
+      } finally {
+        setLoading(false);
+      }
     });
 
     return unsubscribe;
@@ -127,6 +143,7 @@ export function AuthProvider({ children }) {
     register,
     logout,
     saveProfile,
+    authError,
   };
 
   return (
