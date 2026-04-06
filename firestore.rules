@@ -1,0 +1,223 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isNonEmptyString(value, maxLen) {
+      return value is string && value.size() > 0 && value.size() <= maxLen;
+    }
+
+    function isOptionalString(value, maxLen) {
+      return value == null || (value is string && value.size() <= maxLen);
+    }
+
+    function isOptionalTimestamp(value) {
+      return value == null || value is timestamp;
+    }
+
+    function isValidGender(value) {
+      return value == 'male' || value == 'female';
+    }
+
+    function isValidTone(value) {
+      return value == 'Friendly' || value == 'Strict' || value == 'Motivational';
+    }
+
+    function isValidPriority(value) {
+      return value == 'low' || value == 'medium' || value == 'high';
+    }
+
+    function isValidTimeString(value) {
+      return value is string &&
+        value.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+    }
+
+    function unchanged(field) {
+      return (
+        !(field in resource.data) &&
+        !(field in request.resource.data)
+      ) || (
+        (field in resource.data) &&
+        (field in request.resource.data) &&
+        request.resource.data[field] == resource.data[field]
+      );
+    }
+
+    function sameOrRequestTime(field) {
+      return !(field in request.resource.data) ||
+        request.resource.data[field] == request.time ||
+        ((field in resource.data) && request.resource.data[field] == resource.data[field]);
+    }
+
+    function validUserBase(data) {
+      return data.keys().hasOnly([
+        'email',
+        'gender',
+        'displayName',
+        'createdAt',
+        'updatedAt',
+        'emailReminders',
+        'pushNotifications',
+        'quietHoursStart',
+        'quietHoursEnd',
+        'tone'
+      ]) &&
+      data.keys().hasAll([
+        'email',
+        'gender',
+        'displayName',
+        'createdAt'
+      ]) &&
+      data.email == request.auth.token.email &&
+      isNonEmptyString(data.displayName, 60) &&
+      isValidGender(data.gender) &&
+      (!('emailReminders' in data) || data.emailReminders is bool) &&
+      (!('pushNotifications' in data) || data.pushNotifications is bool) &&
+      (!('quietHoursStart' in data) || isValidTimeString(data.quietHoursStart)) &&
+      (!('quietHoursEnd' in data) || isValidTimeString(data.quietHoursEnd)) &&
+      (!('tone' in data) || isValidTone(data.tone));
+    }
+
+    function validTaskCreate(data) {
+      return data.keys().hasOnly([
+        'title',
+        'description',
+        'priority',
+        'deadline',
+        'category',
+        'focusMinutes',
+        'completed',
+        'completedAt',
+        'userId',
+        'createdAt'
+      ]) &&
+      data.keys().hasAll([
+        'title',
+        'priority',
+        'category',
+        'focusMinutes',
+        'completed',
+        'completedAt',
+        'userId',
+        'createdAt'
+      ]) &&
+      data.userId == request.auth.uid &&
+      isNonEmptyString(data.title, 120) &&
+      isOptionalString(data.description, 1000) &&
+      isValidPriority(data.priority) &&
+      isOptionalTimestamp(data.deadline) &&
+      isNonEmptyString(data.category, 40) &&
+      data.focusMinutes is int &&
+      data.focusMinutes >= 1 &&
+      data.focusMinutes <= 240 &&
+      data.completed == false &&
+      data.completedAt == null &&
+      data.createdAt == request.time;
+    }
+
+    function validTaskUpdate(data) {
+      return data.keys().hasOnly([
+        'title',
+        'description',
+        'priority',
+        'deadline',
+        'category',
+        'focusMinutes',
+        'completed',
+        'completedAt',
+        'userId',
+        'createdAt',
+        'updatedAt',
+        'notified7day',
+        'notified24h',
+        'lastReminderSent',
+        'remindersSentToday',
+        'lastReminderDay'
+      ]) &&
+      data.userId == resource.data.userId &&
+      data.createdAt == resource.data.createdAt &&
+      isNonEmptyString(data.title, 120) &&
+      isOptionalString(data.description, 1000) &&
+      isValidPriority(data.priority) &&
+      isOptionalTimestamp(data.deadline) &&
+      isNonEmptyString(data.category, 40) &&
+      data.focusMinutes is int &&
+      data.focusMinutes >= 1 &&
+      data.focusMinutes <= 240 &&
+      data.completed is bool &&
+      (
+        (data.completed == false && data.completedAt == null) ||
+        (data.completed == true && data.completedAt is timestamp)
+      ) &&
+      sameOrRequestTime('updatedAt') &&
+      unchanged('notified7day') &&
+      unchanged('notified24h') &&
+      unchanged('lastReminderSent') &&
+      unchanged('remindersSentToday') &&
+      unchanged('lastReminderDay');
+    }
+
+    function validTokenBase(data) {
+      return data.keys().hasOnly([
+        'token',
+        'platform',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasAll([
+        'token',
+        'createdAt'
+      ]) &&
+      isNonEmptyString(data.token, 4096) &&
+      (!('platform' in data) || isOptionalString(data.platform, 40));
+    }
+
+    match /tasks/{taskId} {
+      allow read, delete: if signedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if signedIn() && validTaskCreate(request.resource.data);
+
+      allow update: if signedIn() &&
+        resource.data.userId == request.auth.uid &&
+        validTaskUpdate(request.resource.data);
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId);
+
+      allow create: if isSelf(userId) &&
+        validUserBase(request.resource.data) &&
+        request.resource.data.createdAt == request.time &&
+        (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt == request.time);
+
+      allow update: if isSelf(userId) &&
+        validUserBase(request.resource.data) &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        sameOrRequestTime('updatedAt');
+
+      allow delete: if false;
+
+      match /tokens/{tokenId} {
+        allow read, delete: if isSelf(userId);
+
+        allow create: if isSelf(userId) &&
+          validTokenBase(request.resource.data) &&
+          request.resource.data.createdAt == request.time &&
+          (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt == request.time);
+
+        allow update: if isSelf(userId) &&
+          validTokenBase(request.resource.data) &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          sameOrRequestTime('updatedAt');
+      }
+    }
+  }
+}

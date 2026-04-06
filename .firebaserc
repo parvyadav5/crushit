@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "crushit-49396",
+    "login": "crushit-49396",
+    "Alias: production": "crushit-49396"
+  },
+  "targets": {
+    "lockyourassin": {
+      "hosting": {
+        "crushitapp": [
+          "crushit"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
